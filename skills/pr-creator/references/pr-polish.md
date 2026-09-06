@@ -6,6 +6,14 @@ Do this before the first push wherever possible. Rewriting history under an open
 
 ## Guardrails
 
+- The commands below use `origin/<base>`. Discover the base branch up front and substitute it everywhere:
+
+  ```bash
+  gh repo view --json defaultBranchRef --jq .defaultBranchRef.name
+  ```
+
+  Never assume `main`: a merge-base against the wrong branch silently spans the wrong history, and every command in this file derives from it.
+
 - Snapshot the tree before any rewrite and compare after. Same hash means only history changed; a different hash means code changed, so stop and investigate before pushing.
 
   ```bash
@@ -33,7 +41,7 @@ Do this before the first push wherever possible. Rewriting history under an open
 Mark each stray commit as a fixup of its target, then let git fold them in. `GIT_SEQUENCE_EDITOR=true` accepts the generated todo list unchanged, so no editor opens.
 
 ```bash
-BASE=$(git merge-base HEAD origin/main)
+BASE=$(git merge-base HEAD origin/<base>)
 git commit --fixup=<target-sha>              # for new stray changes; an existing stray commit needs the soft reset path unless its subject already starts with "fixup!"
 GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash "$BASE"
 ```
@@ -45,7 +53,7 @@ Git 2.44 and later also accept `git rebase --autosquash "$BASE"` with no `-i`; t
 For a full reorder, collapse the branch to one staged change and recommit it in reading order. This is non-interactive by construction, which is why it beats scripting `GIT_SEQUENCE_EDITOR` with `sed` for anything more than a squash.
 
 ```bash
-BASE=$(git merge-base HEAD origin/main)
+BASE=$(git merge-base HEAD origin/<base>)
 git reset --soft "$BASE"                     # all changes stay staged, history is gone
 
 git commit -m "Add user role column migration" -- <schema-files>
@@ -70,7 +78,7 @@ Reading order, when the change has these layers:
 Extract the independent slice onto its own branch, then rebuild the original without it.
 
 ```bash
-git switch -c <new-branch> origin/main
+git switch -c <new-branch> origin/<base>
 git cherry-pick <sha>...                     # the independent commits, oldest first
 git push -u origin HEAD                      # then gh pr create for this slice per SKILL.md
 
@@ -78,7 +86,7 @@ git switch <original-branch>
 # soft reset and rebuild, omitting the extracted files
 ```
 
-Add `Part of ABC-123` to both bodies if they share one Linear issue, and one line in the original PR saying what moved where. Split only work that a reviewer could approve without the other PR; splitting coupled changes doubles the review, it does not halve it.
+If both slices map to one ticket, put a non-closing reference (`Part of ABC-123`) in both bodies instead of a closing keyword, plus one line in the original PR saying what moved where. Split only work that a reviewer could approve without the other PR; splitting coupled changes doubles the review, it does not halve it.
 
 ## Review path in the description
 
